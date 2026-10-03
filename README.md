@@ -37,7 +37,7 @@ Se han comprobado conexiones reales al diccionario, sinónimos, antónimos y pal
 
 ## Proyecto para GitHub
 
-Repositorio: https://github.com/kate-blip728/lexico-nvda . Contiene el código fuente del complemento, pruebas, un generador del paquete y el instalable en `downloads/`.
+Repositorio: https://github.com/kate-blip728/lexico-nvda . Contiene el código fuente del complemento, pruebas, un generador del paquete y el instalable en la raíz del repositorio.
 
 Para generar el archivo instalable: `python build.py`.
 Para ejecutar pruebas: `python -m unittest discover -s tests -v`.
