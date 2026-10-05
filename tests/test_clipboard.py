@@ -26,7 +26,7 @@ class ClipboardChecks(unittest.TestCase):
         self.window = SimpleNamespace(busy=False, input=SimpleNamespace(SetValue=Mock(), GetValue=Mock(return_value='texto antiguo')),
             plugin=SimpleNamespace(store=SimpleNamespace(values={'language': 'inglés', 'key': 'test-key', 'model': 'test-model'})),
             result=None)
-        def run(operation):
+        def run(operation, history=None):
             self.window.result = operation()
         self.window.run = run
         for name, function in funcs.items():
