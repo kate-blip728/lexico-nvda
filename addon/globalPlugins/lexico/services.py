@@ -1,5 +1,6 @@
 import json
 import re
+from html.parser import HTMLParser
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
@@ -7,9 +8,83 @@ from urllib.error import HTTPError, URLError
 DLE = 'https://dle.rae.es/'
 API = 'https://generativelanguage.googleapis.com/v1beta/'
 DICTIONARY_API = 'https://rae-api.com/api/'
+DPD = 'https://www.rae.es/dpd/'
 
 class ServiceError(Exception):
     pass
+
+class DPDParser(HTMLParser):
+    """Read the DPD entry elements, excluding site navigation."""
+    blocks = {'header', 'p', 'div', 'section', 'li', 'tr', 'h1', 'h2', 'h3', 'h4', 'table'}
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.depth = 0
+        self.ignored = 0
+        self.parts = []
+        self.canonical = ''
+        self.entry_count = 0
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag == 'link' and 'canonical' in attrs.get('rel', '').split():
+            target = attrs.get('href', '')
+            if target.startswith(DPD):
+                self.canonical = target
+        if tag == 'entry':
+            self.depth += 1
+            self.entry_count += 1
+            self.parts.append('\n\n')
+        if not self.depth:
+            return
+        if tag in ('script', 'style'):
+            self.ignored += 1
+        if self.ignored:
+            return
+        if tag in self.blocks or tag == 'br':
+            self.parts.append('\n\n' if tag in self.blocks else '\n')
+        elif tag in ('td', 'th'):
+            self.parts.append(' | ')
+        elif tag == 'sup':
+            self.parts.append('^')
+
+    def handle_endtag(self, tag):
+        if tag == 'entry' and self.depth:
+            self.parts.append('\n\n')
+            self.depth -= 1
+        elif self.depth:
+            if tag in ('script', 'style') and self.ignored:
+                self.ignored -= 1
+            elif not self.ignored and tag in self.blocks:
+                self.parts.append('\n\n')
+
+    def handle_data(self, data):
+        if self.depth and not self.ignored:
+            self.parts.append(data)
+
+    def text(self):
+        value = ''.join(self.parts).replace('\xa0', ' ')
+        value = re.sub(r'[^\S\n]+', ' ', value)
+        value = re.sub(r' *\n *', '\n', value)
+        return re.sub(r'\n{3,}', '\n\n', value).strip()
+
+def lookup_dpd(word):
+    word = word.strip()
+    if not word or len(word) > 150 or '\n' in word or '\r' in word:
+        raise ServiceError('Escribe una palabra o expresión de hasta 150 caracteres para el DPD.')
+    url = DPD + quote(word, safe='')
+    parser = DPDParser()
+    try:
+        parser.feed(request(url))
+        parser.close()
+    except (ValueError, TypeError):
+        raise ServiceError('No se pudo leer la entrada del Diccionario panhispánico de dudas.') from None
+    text = parser.text()
+    if not parser.entry_count or not text:
+        raise ServiceError('El DPD no devolvió una entrada para esa consulta. Prueba con otra palabra o expresión; '
+                           'si ocurre con todas, el sitio puede haber cambiado o bloqueado el acceso.')
+    return ('Diccionario panhispánico de dudas\nConsulta: ' + word + '\n\n' + text +
+            '\n\nFuente: Diccionario panhispánico de dudas de la RAE y ASALE.\n' + (parser.canonical or url))
 
 def request(url, data=None, key=None):
     headers = {'User-Agent': 'LexicoNVDA/0.1', 'Accept': 'application/json' if key else 'text/html'}

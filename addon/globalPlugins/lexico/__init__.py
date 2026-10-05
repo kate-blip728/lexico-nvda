@@ -48,7 +48,7 @@ class Options(wx.Dialog):
         layout.Add(wx.StaticText(self, label='La clave se guarda cifrada para tu usuario de Windows.\n'
             'Al traducir o preguntar, el texto indicado se envía a Google Gemini.\n'
             'La revisión de Windows no utiliza Gemini.\n'
-            'Las búsquedas se envían al servicio independiente rae-api.com.'), 0, wx.ALL, 8)
+            'Las búsquedas del DLE se envían a rae-api.com; las del DPD a www.rae.es.'), 0, wx.ALL, 8)
         layout.Add(wx.StaticText(self, label='Número máximo de entradas del historial (0 lo desactiva):'), 0, wx.ALL, 8)
         self.limit = wx.SpinCtrl(self, min=0, max=10000, initial=store.values['history_limit'])
         layout.Add(self.limit, 0, wx.ALL, 8)
@@ -80,7 +80,7 @@ class Options(wx.Dialog):
 
 class Window(wx.Dialog):
     def __init__(self, parent, plugin, initial=''):
-        super().__init__(parent, title='Léxico 0.4.0: diccionario, escritura y traducción', size=(760, 680))
+        super().__init__(parent, title='Léxico 0.5.0: diccionario, escritura y traducción', size=(760, 680))
         self.plugin = plugin
         self.alive = True
         self.busy = False
@@ -97,6 +97,13 @@ class Window(wx.Dialog):
             buttons.Add(button, 0, wx.ALL, 4)
             self.actions.append(button)
         layout.Add(buttons, 0, wx.ALL, 4)
+        dictionary = wx.BoxSizer(wx.HORIZONTAL)
+        for label, action in [('Definición del porta&papeles', self.lookupClipboard), ('Consultar &DPD', self.dpd)]:
+            button = wx.Button(self, label=label)
+            button.Bind(wx.EVT_BUTTON, action)
+            dictionary.Add(button, 0, wx.ALL, 4)
+            self.actions.append(button)
+        layout.Add(dictionary, 0, wx.ALL, 4)
         writing = wx.StaticBoxSizer(wx.VERTICAL, self, 'Cómo se escribe')
         writing.Add(wx.StaticText(self, label='Comprueba la palabra escrita arriba con el corrector de Windows.'), 0, wx.ALL, 4)
         how = wx.Button(self, label='Comprobar &escritura')
@@ -179,6 +186,29 @@ class Window(wx.Dialog):
     def lookup(self, event=None):
         word = self.word.GetValue()
         self.run(lambda: services.lookup(word), dict(kind='DLE', text=word))
+    def lookupText(self, word):
+        if self.busy:
+            ui.message('Hay una consulta en curso. Espera a que termine.')
+            return
+        if not isinstance(word, str) or not word.strip():
+            ui.message('El portapapeles no contiene una palabra o expresión.')
+            return
+        word = word.strip()
+        if len(word) > 150 or '\n' in word or '\r' in word:
+            ui.message('Copia una palabra o expresión de una sola línea y hasta 150 caracteres.')
+            return
+        self.word.SetValue(word)
+        self.lookup()
+    def lookupClipboard(self, event=None):
+        try:
+            word = api.getClipData()
+        except Exception:
+            ui.message('El portapapeles no contiene texto.')
+            return
+        self.lookupText(word)
+    def dpd(self, event=None):
+        word = self.word.GetValue()
+        self.run(lambda: services.lookup_dpd(word), dict(kind='DPD', text=word))
     def daily(self, event=None):
         self.run(services.daily_word, dict(kind='Palabra del día', text=''))
     def translate(self, event=None):
@@ -234,7 +264,7 @@ class Window(wx.Dialog):
                 entry = dialog.selected()
                 if entry:
                     self.input.SetValue(entry['text'])
-                    self.word.SetValue(entry['text'] if entry['kind'] in ('DLE', 'Escritura') else '')
+                    self.word.SetValue(entry['text'] if entry['kind'] in ('DLE', 'DPD', 'Escritura') else '')
                     self.result.SetValue(entry['result'])
                     self.result.SetInsertionPoint(0)
                     self.result.SetFocus()
@@ -403,11 +433,13 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             finally:
                 gui.mainFrame.postPopup()
         else:
-            if initial and action != 'translate':
+            if initial and action not in ('translate', 'lookupText'):
                 self.window.input.SetValue(initial)
             self.window.Raise()
         if action == 'translate':
             self.window.translateText(initial)
+        elif action == 'lookupText':
+            self.window.lookupText(initial)
         elif action:
             getattr(self.window, action)()
     @script(description='Abre Léxico para consultar el DLE o traducir texto.')
@@ -432,6 +464,18 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             ui.message('El portapapeles no contiene texto.')
             return
         wx.CallAfter(self.open, text, 'translate')
+    @script(description='Consulta la definición de la palabra del portapapeles en el DLE dentro de Léxico.',
+            gesture='kb:NVDA+control+shift+d')
+    def script_lookupClipboard(self, gesture):
+        try:
+            word = api.getClipData()
+        except Exception:
+            ui.message('El portapapeles no contiene texto.')
+            return
+        if not isinstance(word, str) or not word.strip():
+            ui.message('El portapapeles no contiene una palabra o expresión.')
+            return
+        wx.CallAfter(self.open, word, 'lookupText')
     def terminate(self):
         self.active = False
         if self.window:
