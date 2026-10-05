@@ -14,7 +14,7 @@ LANGUAGES = ['español', 'inglés', 'francés', 'alemán', 'italiano', 'portugu�
              'húngaro', 'indonesio', 'japonés', 'neerlandés', 'noruego', 'polaco', 'rumano',
              'ruso', 'sueco', 'tailandés', 'turco', 'ucraniano', 'vietnamita']
 SPELL_LANGUAGES = ['es-ES', 'es-MX', 'en-US', 'en-GB', 'fr-FR', 'de-DE', 'it-IT', 'pt-PT', 'pt-BR', 'ca-ES']
-DEFAULTS = {'language': 'inglés', 'model': RECOMMENDED_MODEL, 'key': '', 'spelling_language': 'es-ES'}
+DEFAULTS = {'language': 'inglés', 'model': RECOMMENDED_MODEL, 'key': '', 'spelling_language': 'es-ES', 'history_limit': 100}
 
 class Blob(ctypes.Structure):
     _fields_ = [('size', wintypes.DWORD), ('data', ctypes.POINTER(ctypes.c_ubyte))]
@@ -54,16 +54,21 @@ class Store:
                 for name in ('language', 'model', 'spelling_language'):
                     if isinstance(raw.get(name), str):
                         self.values[name] = raw[name]
+                limit = raw.get('history_limit', 100)
+                if type(limit) is int and 0 <= limit <= 10000:
+                    self.values['history_limit'] = limit
                 if raw.get('protectedKey'):
                     self.values['key'] = crypt(base64.b64decode(raw['protectedKey']), True).decode('utf-8')
             except (OSError, ValueError, TypeError, UnicodeError):
                 self.warning = 'No se pudo leer la configuración o descifrar la clave. Revisa las opciones de Léxico.'
-    def save(self, language, model, key, spelling_language='es-ES'):
-        raw = {'language': language, 'model': model, 'spelling_language': spelling_language,
+    def save(self, language, model, key, spelling_language='es-ES', history_limit=100):
+        if type(history_limit) is not int or not 0 <= history_limit <= 10000:
+            raise ValueError('Invalid history limit')
+        raw = {'history_limit': history_limit, 'language': language, 'model': model, 'spelling_language': spelling_language,
                'protectedKey': base64.b64encode(crypt(key.encode('utf-8'))).decode('ascii') if key else ''}
         self.path.parent.mkdir(parents=True, exist_ok=True)
         temporary = self.path.with_suffix('.tmp')
         temporary.write_text(json.dumps(raw, ensure_ascii=False, indent=2), encoding='utf-8')
         os.replace(temporary, self.path)
-        self.values = {'language': language, 'model': model, 'key': key, 'spelling_language': spelling_language}
+        self.values = {'history_limit': history_limit, 'language': language, 'model': model, 'key': key, 'spelling_language': spelling_language}
         self.warning = ''

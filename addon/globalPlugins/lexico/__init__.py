@@ -1,3 +1,4 @@
+import os
 import threading
 import webbrowser
 import wx
@@ -9,7 +10,8 @@ import gui
 import textInfos
 import ui
 from scriptHandler import script
-from . import services, spelling
+from . import services, spelling, updates
+from .history import History
 from .correction import CorrectionDialog
 from .storage import Store, LANGUAGES, MODELS, RECOMMENDED_MODEL, SPELL_LANGUAGES
 
@@ -47,6 +49,9 @@ class Options(wx.Dialog):
             'Al traducir o preguntar, el texto indicado se envía a Google Gemini.\n'
             'La revisión de Windows no utiliza Gemini.\n'
             'Las búsquedas se envían al servicio independiente rae-api.com.'), 0, wx.ALL, 8)
+        layout.Add(wx.StaticText(self, label='Número máximo de entradas del historial (0 lo desactiva):'), 0, wx.ALL, 8)
+        self.limit = wx.SpinCtrl(self, min=0, max=10000, initial=store.values['history_limit'])
+        layout.Add(self.limit, 0, wx.ALL, 8)
         layout.Add(self.CreateButtonSizer(wx.OK | wx.CANCEL), 0, wx.ALL | wx.ALIGN_RIGHT, 8)
         self.SetSizerAndFit(layout)
         self.Bind(wx.EVT_BUTTON, self.save, id=wx.ID_OK)
@@ -66,7 +71,7 @@ class Options(wx.Dialog):
             wx.MessageBox('Escribe el idioma y el modelo.', 'Léxico', wx.OK | wx.ICON_ERROR, self)
             return
         try:
-            self.store.save(**values)
+            self.store.save(**values, history_limit=self.limit.GetValue())
         except (OSError, ValueError):
             wx.MessageBox('No se pudo guardar la configuración. Las opciones anteriores se mantienen.',
                           'Léxico', wx.OK | wx.ICON_ERROR, self)
@@ -75,7 +80,7 @@ class Options(wx.Dialog):
 
 class Window(wx.Dialog):
     def __init__(self, parent, plugin, initial=''):
-        super().__init__(parent, title='Léxico 0.3.2: diccionario, escritura y traducción', size=(760, 680))
+        super().__init__(parent, title='Léxico 0.4.0: diccionario, escritura y traducción', size=(760, 680))
         self.plugin = plugin
         self.alive = True
         self.busy = False
@@ -110,7 +115,7 @@ class Window(wx.Dialog):
             self.actions.append(button)
         layout.Add(buttons, 0, wx.ALL, 4)
         buttons = wx.BoxSizer(wx.HORIZONTAL)
-        for label, action in [('Corregir con &Windows', self.correct), ('&Preguntar a Gemini', self.ask)]:
+        for label, action in [('Corregir con &Windows', self.correct), ('&Preguntar a Gemini', self.ask), ('&Historial', self.history), ('Buscar &actualizaciones', self.update)]:
             button = wx.Button(self, label=label)
             button.Bind(wx.EVT_BUTTON, action)
             buttons.Add(button, 0, wx.ALL, 4)
@@ -136,7 +141,7 @@ class Window(wx.Dialog):
         self.alive = False
         self.plugin.window = None
         self.Destroy()
-    def run(self, operation):
+    def run(self, operation, history=None):
         if self.busy:
             ui.message('Hay una consulta en curso.')
             return
@@ -150,6 +155,11 @@ class Window(wx.Dialog):
         def worker():
             try:
                 result = operation()
+                if history is not None:
+                    try:
+                        self.plugin.history.add(result=result, limit=self.plugin.store.values['history_limit'], **history)
+                    except (OSError, ValueError):
+                        result += '\n\nNo se pudo guardar esta consulta en el historial.'
             except (services.ServiceError, spelling.SpellError) as error:
                 result = str(error)
             except Exception:
@@ -168,9 +178,9 @@ class Window(wx.Dialog):
         ui.message('Resultado disponible. Puedes leerlo con las flechas.')
     def lookup(self, event=None):
         word = self.word.GetValue()
-        self.run(lambda: services.lookup(word))
+        self.run(lambda: services.lookup(word), dict(kind='DLE', text=word))
     def daily(self, event=None):
-        self.run(services.daily_word)
+        self.run(services.daily_word, dict(kind='Palabra del día', text=''))
     def translate(self, event=None):
         self.translateText(self.input.GetValue())
     def translateText(self, text):
@@ -182,7 +192,8 @@ class Window(wx.Dialog):
             return
         self.input.SetValue(text)
         values = self.plugin.store.values.copy()
-        self.run(lambda: services.translate(text, values['language'], values['key'], values['model']))
+        self.run(lambda: services.translate(text, values['language'], values['key'], values['model']),
+                 dict(kind='Traducción', text=text, language=values['language'], model=values['model']))
     def translateClipboard(self, event=None):
         try:
             text = api.getClipData()
@@ -193,7 +204,7 @@ class Window(wx.Dialog):
     def howWritten(self, event=None):
         word = self.word.GetValue().strip()
         language = self.plugin.store.values['spelling_language']
-        self.run(lambda: spelling.how_written(word, language))
+        self.run(lambda: spelling.how_written(word, language), dict(kind='Escritura', text=word, language=language))
     def correct(self, event=None):
         dialog = CorrectionDialog(self, self.input.GetValue(), self.plugin.store.values['spelling_language'])
         try:
@@ -214,7 +225,66 @@ class Window(wx.Dialog):
         finally:
             dialog.Destroy()
         values = self.plugin.store.values.copy()
-        self.run(lambda: services.ask(question, values['key'], values['model']))
+        self.run(lambda: services.ask(question, values['key'], values['model']),
+                 dict(kind='Pregunta', text=question, model=values['model']))
+    def history(self, event):
+        dialog = HistoryDialog(self, self.plugin.history)
+        try:
+            if dialog.ShowModal() == wx.ID_OK:
+                entry = dialog.selected()
+                if entry:
+                    self.input.SetValue(entry['text'])
+                    self.word.SetValue(entry['text'] if entry['kind'] in ('DLE', 'Escritura') else '')
+                    self.result.SetValue(entry['result'])
+                    self.result.SetInsertionPoint(0)
+                    self.result.SetFocus()
+        finally:
+            dialog.Destroy()
+
+    def update(self, event):
+        if self.busy:
+            ui.message('Hay una consulta en curso.')
+            return
+        def checked(metadata, error):
+            if not self.alive or not self.plugin.active:
+                return
+            self.busy = False
+            for button in self.actions:
+                button.Enable()
+            if error:
+                wx.MessageBox('No se pudo buscar la actualización. ' + error, 'Léxico', wx.OK | wx.ICON_ERROR, self)
+            elif metadata is None:
+                wx.MessageBox('Léxico ya está actualizado.', 'Léxico', wx.OK, self)
+            elif wx.MessageBox('Está disponible Léxico ' + metadata['version'] + '. ¿Descargar y abrir el instalador de NVDA?',
+                               'Actualizar Léxico', wx.YES_NO | wx.ICON_QUESTION, self) == wx.YES:
+                start(lambda: updates.download(metadata, self.plugin.store.path.parent / 'lexico-updates'), installed)
+        def installed(path, error):
+            if not self.alive or not self.plugin.active:
+                return
+            self.busy = False
+            for button in self.actions:
+                button.Enable()
+            try:
+                if error:
+                    raise OSError(error)
+                os.startfile(str(path))
+                self.result.SetValue('Instalador abierto. Sigue las instrucciones de NVDA y reinicia NVDA al terminar.')
+            except OSError as exc:
+                wx.MessageBox('No se pudo abrir el instalador. ' + str(exc), 'Léxico', wx.OK | wx.ICON_ERROR, self)
+        def start(operation, callback):
+            self.busy = True
+            for button in self.actions:
+                button.Disable()
+            self.result.SetValue('Consultando GitHub…')
+            def worker():
+                try:
+                    value, error = operation(), ''
+                except Exception as exc:
+                    value, error = None, str(exc)
+                wx.CallAfter(callback, value, error)
+            threading.Thread(target=worker, daemon=True).start()
+        start(updates.check, checked)
+
     def paste(self, event):
         try:
             self.input.SetValue(api.getClipData())
@@ -231,9 +301,65 @@ class Window(wx.Dialog):
     def options(self, event):
         dialog = Options(self, self.plugin.store)
         try:
-            dialog.ShowModal()
+            if dialog.ShowModal() == wx.ID_OK:
+                try:
+                    self.plugin.history.trim(self.plugin.store.values['history_limit'])
+                except OSError:
+                    wx.MessageBox('Opciones guardadas, pero no se pudo reducir el historial.', 'Léxico', wx.OK | wx.ICON_ERROR, self)
         finally:
             dialog.Destroy()
+
+class HistoryDialog(wx.Dialog):
+    def __init__(self, parent, history):
+        super().__init__(parent, title='Historial de Léxico', size=(700, 550))
+        self.history = history
+        layout = wx.BoxSizer(wx.VERTICAL)
+        layout.Add(wx.StaticText(self, label='Consultas guardadas, de más reciente a más antigua:'), 0, wx.ALL, 8)
+        self.items = wx.ListBox(self)
+        layout.Add(self.items, 1, wx.EXPAND | wx.ALL, 8)
+        self.preview = wx.TextCtrl(self, style=wx.TE_MULTILINE | wx.TE_READONLY)
+        layout.Add(self.preview, 1, wx.EXPAND | wx.ALL, 8)
+        self.items.Bind(wx.EVT_LISTBOX, self.showEntry)
+        self.items.Bind(wx.EVT_LISTBOX_DCLICK, lambda event: self.EndModal(wx.ID_OK) if self.selected() else None)
+        for label, action in [('Copiar resultado', self.copy), ('Eliminar entrada', self.delete), ('Vaciar historial', self.clear)]:
+            button = wx.Button(self, label=label)
+            button.Bind(wx.EVT_BUTTON, action)
+            layout.Add(button, 0, wx.ALL, 4)
+        layout.Add(self.CreateButtonSizer(wx.OK | wx.CANCEL), 0, wx.ALL, 8)
+        self.SetSizer(layout)
+        self.FindWindowById(wx.ID_OK).SetLabel('Recuperar texto y resultado')
+        self.refresh()
+        self.items.SetFocus()
+    def selected(self):
+        index = self.items.GetSelection()
+        return self.history.entries[index] if 0 <= index < len(self.history.entries) else None
+    def refresh(self):
+        self.items.Set([e['date'] + ' · ' + e['kind'] + (' · ' + e['language'] if e['language'] else '') + ' · ' + e['text'][:80].replace('\n', ' ') for e in self.history.entries])
+        self.FindWindowById(wx.ID_OK).Enable(bool(self.history.entries))
+        if self.history.entries:
+            self.items.SetSelection(0)
+        self.showEntry()
+    def showEntry(self, event=None):
+        entry = self.selected()
+        self.preview.SetValue('Original:\n' + entry['text'] + '\n\nResultado:\n' + entry['result'] if entry else 'El historial está vacío.')
+    def copy(self, event):
+        entry = self.selected()
+        if entry:
+            api.copyToClip(entry['result'])
+            ui.message('Resultado copiado.')
+    def persist(self, entries):
+        try:
+            self.history.write(entries)
+            self.refresh()
+        except OSError:
+            wx.MessageBox('No se pudo guardar el cambio en el historial.', 'Léxico', wx.OK | wx.ICON_ERROR, self)
+    def delete(self, event):
+        if self.selected():
+            index = self.items.GetSelection()
+            self.persist(self.history.entries[:index] + self.history.entries[index + 1:])
+    def clear(self, event):
+        if wx.MessageBox('¿Eliminar todo el historial guardado?', 'Léxico', wx.YES_NO | wx.ICON_QUESTION, self) == wx.YES:
+            self.persist([])
 
 class GlobalPlugin(globalPluginHandler.GlobalPlugin):
     scriptCategory = 'Léxico'
@@ -245,6 +371,13 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
         if globalVars.appArgs.secure:
             return
         self.store = Store(WritePaths.configDir)
+        self.history = History(WritePaths.configDir)
+        try:
+            if not self.history.warning:
+                self.history.trim(self.store.values['history_limit'])
+        except OSError:
+            self.store.warning += '\nNo se pudo aplicar el límite del historial.'
+        self.store.warning += self.history.warning
         self.active = True
         self.menu = gui.mainFrame.sysTrayIcon.toolsMenu.Append(wx.ID_ANY, 'Léxico: diccionario y traducción…')
         gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU, self.onMenu, self.menu)
