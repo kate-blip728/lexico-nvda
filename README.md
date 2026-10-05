@@ -1,6 +1,6 @@
-# Léxico para NVDA — versión inicial 0.4.0
+# Léxico para NVDA — versión 0.5.0
 
-[Descargar Léxico 0.4.0 para NVDA](https://github.com/kate-blip728/lexico-nvda/raw/refs/heads/main/lexico-0.4.0.nvda-addon)
+[Descargar Léxico 0.5.0 para NVDA](https://github.com/kate-blip728/lexico-nvda/raw/refs/heads/main/lexico-0.5.0.nvda-addon)
 
 Repositorio público con el código fuente, las pruebas y el generador del paquete. Versión inicial: consulta las limitaciones de validación antes de instalar.
 
@@ -8,14 +8,14 @@ Preparado para NVDA 2026.2, la versión estable oficial publicada el 31 de agost
 
 ## Instalación y uso
 
-1. Abre `lexico-0.4.0.nvda-addon` con NVDA y acepta la instalación. Reinicia NVDA cuando lo solicite.
+1. Abre `lexico-0.5.0.nvda-addon` con NVDA y acepta la instalación. Reinicia NVDA cuando lo solicite.
 2. En el menú NVDA, abre Herramientas → Léxico: diccionario y traducción.
 3. Escribe una palabra y pulsa Buscar en el DLE, o pulsa Palabra del día.
 4. Lee el resultado con las flechas en el campo Resultado. Incluye definiciones, ejemplos cuando existen y sinónimos y antónimos por acepción. Si el servicio no los indica, se comunica expresamente; no se inventan.
 5. Para traducir, abre Opciones, introduce tu clave de API de Gemini, el idioma de destino y el modelo. El modelo inicial es `gemini-3.5-flash-lite`; puedes cambiarlo por uno al que tenga acceso tu cuenta.
 6. Escribe o pega el texto, y pulsa Traducir. El resultado aparece en la misma ventana. Copiar resultado solo modifica el portapapeles al pulsar ese botón.
 
-Tab y Mayús+Tab recorren los controles; Escape cierra la ventana. No se asignan atajos globales de fábrica. Puedes asignarlos en NVDA → Preferencias → Gestos de entrada → Léxico: abrir, palabra del día, traducir selección y traducir portapapeles.
+Tab y Mayús+Tab recorren los controles; Escape cierra la ventana. El gesto NVDA+Control+Mayús+D consulta la definición del portapapeles; puede cambiarse en Gestos de entrada. Los demás comandos no tienen atajos globales de fábrica. Puedes asignarlos en NVDA → Preferencias → Gestos de entrada → Léxico: abrir, palabra del día, traducir selección y traducir portapapeles.
 
 ## Configuración que se conserva
 
@@ -108,3 +108,11 @@ Se verificaron el reintento y el aviso con respuestas simuladas: 19 pruebas apro
 Buscar actualizaciones consulta `update.json` del repositorio público y ofrece descargar el instalador, verifica SHA-256 y manifiesto y lo abre con NVDA. Publicar siempre el paquete y `update.json` juntos en la raíz de main. `build.py` genera ambos. No se instala sin intervención del usuario.
 
 Historial conserva consultas correctas y traducciones con texto original, resultado, fecha, idioma y modelo. Opciones permite de 0 a 10000 entradas (100 por defecto); 0 desactiva y vacía el historial. Recuperar no envía otra petición. Se puede copiar, eliminar y vaciar. Los textos se almacenan localmente sin cifrado en `lexico-history.json`, sin claves de API.
+
+## DPD y definición del portapapeles — versión 0.5.0
+
+Escribe una palabra o expresión en «Palabra o expresión» y pulsa «Consultar DPD». El artículo del Diccionario panhispánico de dudas de la RAE y ASALE aparece en Resultado dentro de Léxico, con sus apartados y ejemplos; se puede leer con las flechas, copiar y recuperar desde el historial. Consulta directamente https://www.rae.es/dpd/; no usa Gemini ni abre el navegador. Si el sitio remite a otra entrada, se muestra esa entrada y su dirección oficial. Las referencias del artículo se presentan como texto; para consultar otra entrada, escribe su nombre en el campo de palabra y vuelve a pulsar Consultar DPD. Si no hay entrada o el sitio bloquea el acceso, se muestra un aviso.
+
+Copia una palabra o expresión y pulsa NVDA+Control+Mayús+D para consultar su definición en el DLE. También puedes usar «Definición del portapapeles». Ambos capturan el portapapeles, abren Léxico si hace falta y consultan directamente sin sobrescribir el texto de traducción. Admiten una sola línea de hasta 150 caracteres. El gesto puede modificarse en NVDA → Preferencias → Gestos de entrada → Léxico → Consulta la definición de la palabra del portapapeles en el DLE dentro de Léxico.
+
+Se verificó el acceso real a las entradas haber, porque y solo (remite a tilde), y una consulta sin entrada. Las pruebas automáticas comprueban la extracción exclusiva del artículo, entidades y apartados, portapapeles vacío o excesivo y el gesto con NVDA simulado. Queda pendiente comprobar la interfaz y el atajo en una sesión real de NVDA.
