@@ -1,6 +1,6 @@
-# Léxico para NVDA — versión 0.5.0
+# Léxico para NVDA — versión 0.5.1
 
-[Descargar Léxico 0.5.0 para NVDA](https://github.com/kate-blip728/lexico-nvda/raw/refs/heads/main/lexico-0.5.0.nvda-addon)
+[Descargar Léxico 0.5.1 para NVDA](https://github.com/kate-blip728/lexico-nvda/raw/refs/heads/main/lexico-0.5.1.nvda-addon)
 
 Repositorio público con el código fuente, las pruebas y el generador del paquete. Versión inicial: consulta las limitaciones de validación antes de instalar.
 
@@ -8,7 +8,7 @@ Preparado para NVDA 2026.2, la versión estable oficial publicada el 31 de agost
 
 ## Instalación y uso
 
-1. Abre `lexico-0.5.0.nvda-addon` con NVDA y acepta la instalación. Reinicia NVDA cuando lo solicite.
+1. Abre `lexico-0.5.1.nvda-addon` con NVDA y acepta la instalación. Reinicia NVDA cuando lo solicite.
 2. En el menú NVDA, abre Herramientas → Léxico: diccionario y traducción.
 3. Escribe una palabra y pulsa Buscar en el DLE, o pulsa Palabra del día.
 4. Lee el resultado con las flechas en el campo Resultado. Incluye definiciones, ejemplos cuando existen y sinónimos y antónimos por acepción. Si el servicio no los indica, se comunica expresamente; no se inventan.
@@ -116,3 +116,7 @@ Escribe una palabra o expresión en «Palabra o expresión» y pulsa «Consultar
 Copia una palabra o expresión y pulsa NVDA+Control+Mayús+D para consultar su definición en el DLE. También puedes usar «Definición del portapapeles». Ambos capturan el portapapeles, abren Léxico si hace falta y consultan directamente sin sobrescribir el texto de traducción. Admiten una sola línea de hasta 150 caracteres. El gesto puede modificarse en NVDA → Preferencias → Gestos de entrada → Léxico → Consulta la definición de la palabra del portapapeles en el DLE dentro de Léxico.
 
 Se verificó el acceso real a las entradas haber, porque y solo (remite a tilde), y una consulta sin entrada. Las pruebas automáticas comprueban la extracción exclusiva del artículo, entidades y apartados, portapapeles vacío o excesivo y el gesto con NVDA simulado. Queda pendiente comprobar la interfaz y el atajo en una sesión real de NVDA.
+
+## Lectura por fragmentos — versión 0.5.1
+
+Los resultados y la vista del historial utilizan líneas reales de hasta 90 caracteres (salvo palabras o direcciones más largas) y una línea en blanco como máximo cada tres líneas de un párrafo largo. Se conservan los apartados. En el DPD, los ejemplos citados se separan de la explicación y conservan su referencia. En el DLE, cada definición, ejemplo, lista de sinónimos y antónimos tiene su propio párrafo. El resultado se adapta también al ancho de la ventana. Los resultados antiguos del historial reciben el nuevo formato al recuperarlos, sin modificar el texto almacenado. Usa las flechas para recorrer los fragmentos. Leer todo de NVDA continúa leyendo hasta el final.
