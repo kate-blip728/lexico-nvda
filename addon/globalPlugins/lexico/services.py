@@ -1,5 +1,6 @@
 import json
 import re
+import textwrap
 from html.parser import HTMLParser
 from urllib.parse import quote
 from urllib.request import Request, urlopen
@@ -13,6 +14,23 @@ DPD = 'https://www.rae.es/dpd/'
 class ServiceError(Exception):
     pass
 
+def format_result(text):
+    """Keep existing paragraphs and provide short real lines for arrow reading."""
+    text = text.replace('\r\n', '\n').replace('\r', '\n')
+    paragraphs = re.split(r'\n[ \t]*\n+', text.strip())
+    formatted = []
+    for paragraph in paragraphs:
+        lines = []
+        for line in paragraph.split('\n'):
+            wrapped = textwrap.wrap(line, width=90, break_long_words=False,
+                                    break_on_hyphens=False, replace_whitespace=False)
+            for offset in range(0, len(wrapped), 3):
+                if offset:
+                    lines.append('')
+                lines.extend(wrapped[offset:offset + 3])
+        formatted.append('\n'.join(lines))
+    return '\n\n'.join(formatted)
+
 class DPDParser(HTMLParser):
     """Read the DPD entry elements, excluding site navigation."""
     blocks = {'header', 'p', 'div', 'section', 'li', 'tr', 'h1', 'h2', 'h3', 'h4', 'table'}
@@ -24,6 +42,7 @@ class DPDParser(HTMLParser):
         self.parts = []
         self.canonical = ''
         self.entry_count = 0
+        self.spans = []
 
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
@@ -41,6 +60,11 @@ class DPDParser(HTMLParser):
             self.ignored += 1
         if self.ignored:
             return
+        if tag == 'span':
+            is_example = 'cita' in attrs.get('class', '').split()
+            self.spans.append(is_example)
+            if is_example:
+                self.parts.append('\n\n')
         if tag in self.blocks or tag == 'br':
             self.parts.append('\n\n' if tag in self.blocks else '\n')
         elif tag in ('td', 'th'):
@@ -57,6 +81,9 @@ class DPDParser(HTMLParser):
                 self.ignored -= 1
             elif not self.ignored and tag in self.blocks:
                 self.parts.append('\n\n')
+            elif not self.ignored and tag == 'span' and self.spans:
+                if self.spans.pop():
+                    self.parts.append('\n\n')
 
     def handle_data(self, data):
         if self.depth and not self.ignored:
@@ -66,6 +93,7 @@ class DPDParser(HTMLParser):
         value = ''.join(self.parts).replace('\xa0', ' ')
         value = re.sub(r'[^\S\n]+', ' ', value)
         value = re.sub(r' *\n *', '\n', value)
+        value = re.sub(r'\n+([;,:.])', r'\1', value)
         return re.sub(r'\n{3,}', '\n\n', value).strip()
 
 def lookup_dpd(word):
@@ -129,15 +157,15 @@ def lookup(word):
             if origin.get('raw'):
                 lines.append(origin['raw'])
             for sense in meaning.get('senses', []):
-                lines.append('\n' + str(sense.get('meaning_number', '')) + '. ' + sense.get('description', ''))
+                lines.append(str(sense.get('meaning_number', '')) + '. ' + sense.get('description', ''))
                 for example in sense.get('examples') or []:
                     lines.append('Ejemplo: ' + example)
                 for field, label in [('synonyms', 'Sinónimos'), ('antonyms', 'Antónimos')]:
                     values = sense.get(field) or []
                     words = [item if isinstance(item, str) else item.get('word', '') for item in values]
                     lines.append(label + ': ' + (', '.join(words) if words else 'no se indican para esta acepción.'))
-        lines.extend(['\nFuente: DLE de la RAE y ASALE.', 'Consulta mediante RAE API, servicio independiente no oficial.', url])
-        return '\n'.join(lines)
+        lines.extend(['Fuente: DLE de la RAE y ASALE.', 'Consulta mediante RAE API, servicio independiente no oficial.', url])
+        return '\n\n'.join(lines)
     except (ValueError, TypeError, KeyError, AttributeError):
         raise ServiceError('El servicio del diccionario devolvió una respuesta no reconocida.') from None
 

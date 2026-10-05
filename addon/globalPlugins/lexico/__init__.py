@@ -80,7 +80,7 @@ class Options(wx.Dialog):
 
 class Window(wx.Dialog):
     def __init__(self, parent, plugin, initial=''):
-        super().__init__(parent, title='Léxico 0.5.0: diccionario, escritura y traducción', size=(760, 680))
+        super().__init__(parent, title='Léxico 0.5.1: diccionario, escritura y traducción', size=(760, 680))
         self.plugin = plugin
         self.alive = True
         self.busy = False
@@ -129,7 +129,7 @@ class Window(wx.Dialog):
             self.actions.append(button)
         layout.Add(buttons, 0, wx.ALL, 4)
         layout.Add(wx.StaticText(self, label='&Resultado:'), 0, wx.ALL, 8)
-        self.result = wx.TextCtrl(self, style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_DONTWRAP)
+        self.result = wx.TextCtrl(self, style=wx.TE_MULTILINE | wx.TE_READONLY)
         layout.Add(self.result, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 8)
         bottom = wx.BoxSizer(wx.HORIZONTAL)
         copy = wx.Button(self, label='&Copiar resultado')
@@ -179,7 +179,7 @@ class Window(wx.Dialog):
         self.busy = False
         for button in self.actions:
             button.Enable()
-        self.result.SetValue(result)
+        self.result.SetValue(services.format_result(result))
         self.result.SetInsertionPoint(0)
         self.result.SetFocus()
         ui.message('Resultado disponible. Puedes leerlo con las flechas.')
@@ -265,7 +265,7 @@ class Window(wx.Dialog):
                 if entry:
                     self.input.SetValue(entry['text'])
                     self.word.SetValue(entry['text'] if entry['kind'] in ('DLE', 'DPD', 'Escritura') else '')
-                    self.result.SetValue(entry['result'])
+                    self.result.SetValue(services.format_result(entry['result']))
                     self.result.SetInsertionPoint(0)
                     self.result.SetFocus()
         finally:
@@ -371,7 +371,7 @@ class HistoryDialog(wx.Dialog):
         self.showEntry()
     def showEntry(self, event=None):
         entry = self.selected()
-        self.preview.SetValue('Original:\n' + entry['text'] + '\n\nResultado:\n' + entry['result'] if entry else 'El historial está vacío.')
+        self.preview.SetValue(services.format_result('Original:\n' + entry['text'] + '\n\nResultado:\n' + entry['result']) if entry else 'El historial está vacío.')
     def copy(self, event):
         entry = self.selected()
         if entry:

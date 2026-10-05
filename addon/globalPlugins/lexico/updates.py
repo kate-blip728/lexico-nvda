@@ -6,7 +6,7 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 from zipfile import ZipFile
 
-VERSION = '0.5.0'
+VERSION = '0.5.1'
 BASE = 'https://raw.githubusercontent.com/kate-blip728/lexico-nvda/main/'
 
 def version_tuple(value):
