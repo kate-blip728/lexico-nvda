@@ -62,3 +62,47 @@ class ClipboardChecks(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+class DefinitionClipboardChecks(unittest.TestCase):
+    def setUp(self):
+        self.services = SimpleNamespace(lookup=Mock(return_value='Definición de prueba'))
+        self.api = SimpleNamespace(getClipData=Mock(return_value='  palabra  '))
+        self.ui = SimpleNamespace(message=Mock())
+        namespace = dict(services=self.services, api=self.api, ui=self.ui)
+        funcs = methods('Window', ['lookup', 'lookupText', 'lookupClipboard'], namespace)
+        self.word = ''
+        def set_word(word):
+            self.word = word
+        self.window = SimpleNamespace(busy=False, word=SimpleNamespace(SetValue=Mock(side_effect=set_word),
+                                                                     GetValue=lambda: self.word))
+        self.window.run = lambda operation, history=None: operation()
+        for name, function in funcs.items():
+            setattr(self.window, name, function.__get__(self.window))
+    def test_button_looks_up_clipboard_directly(self):
+        self.window.lookupClipboard()
+        self.services.lookup.assert_called_once_with('palabra')
+    def test_invalid_clipboard_does_not_send(self):
+        for value in ['', '  ', None, 'a'*151, 'uno\ndos']:
+            self.api.getClipData.return_value = value
+            self.window.lookupClipboard()
+        self.services.lookup.assert_not_called()
+    def test_busy_preserves_word(self):
+        self.window.busy = True
+        self.window.lookupClipboard()
+        self.window.word.SetValue.assert_not_called()
+        self.services.lookup.assert_not_called()
+    def test_gesture_uses_captured_word_without_changing_translation_input(self):
+        calls = []
+        namespace = dict(api=self.api, ui=self.ui,
+                         wx=SimpleNamespace(CallAfter=lambda fn, *args: calls.append((fn, args))))
+        funcs = methods('GlobalPlugin', ['script_lookupClipboard', 'open'], namespace)
+        self.window.input = SimpleNamespace(SetValue=Mock())
+        self.window.Raise = Mock()
+        plugin = SimpleNamespace(active=True, window=self.window)
+        plugin.open = funcs['open'].__get__(plugin)
+        funcs['script_lookupClipboard'](plugin, None)
+        self.api.getClipData.return_value = 'otra palabra'
+        fn, args = calls[0]
+        fn(*args)
+        self.services.lookup.assert_called_once_with('palabra')
+        self.window.input.SetValue.assert_not_called()
