@@ -1,6 +1,6 @@
-# Léxico para NVDA — versión inicial 0.3.2
+# Léxico para NVDA — versión inicial 0.4.0
 
-[Descargar Léxico 0.3.2 para NVDA](https://github.com/kate-blip728/lexico-nvda/raw/refs/heads/main/lexico-0.3.2.nvda-addon)
+[Descargar Léxico 0.4.0 para NVDA](https://github.com/kate-blip728/lexico-nvda/raw/refs/heads/main/lexico-0.4.0.nvda-addon)
 
 Repositorio público con el código fuente, las pruebas y el generador del paquete. Versión inicial: consulta las limitaciones de validación antes de instalar.
 
@@ -8,7 +8,7 @@ Preparado para NVDA 2026.2, la versión estable oficial publicada el 31 de agost
 
 ## Instalación y uso
 
-1. Abre `lexico-0.3.2.nvda-addon` con NVDA y acepta la instalación. Reinicia NVDA cuando lo solicite.
+1. Abre `lexico-0.4.0.nvda-addon` con NVDA y acepta la instalación. Reinicia NVDA cuando lo solicite.
 2. En el menú NVDA, abre Herramientas → Léxico: diccionario y traducción.
 3. Escribe una palabra y pulsa Buscar en el DLE, o pulsa Palabra del día.
 4. Lee el resultado con las flechas en el campo Resultado. Incluye definiciones, ejemplos cuando existen y sinónimos y antónimos por acepción. Si el servicio no los indica, se comunica expresamente; no se inventan.
@@ -21,7 +21,7 @@ Tab y Mayús+Tab recorren los controles; Escape cierra la ventana. No se asignan
 
 Al aceptar Opciones se guardan inmediatamente el idioma, el modelo y la clave en `lexico-settings.json`, dentro del directorio de configuración de la copia de NVDA que estás utilizando. No depende de la opción general de guardar NVDA al salir. Cambiar perfiles no cambia estas preferencias. Los gestos asignados se guardan mediante NVDA.
 
-La clave se protege mediante DPAPI de Windows, vinculada al usuario de Windows. Si llevas la configuración a otro usuario o equipo, tendrás que volver a introducirla. Los textos y resultados no se guardan en archivos por el complemento.
+La clave se protege mediante DPAPI de Windows, vinculada al usuario de Windows. Si llevas la configuración a otro usuario o equipo, tendrás que volver a introducirla. Los textos y resultados se guardan en el historial local con el límite elegido en Opciones.
 
 ## Servicios y privacidad
 
@@ -95,10 +95,16 @@ Para pegar sin traducir puedes usar Control+V en el campo de texto. Si hay una c
 
 Se verificaron botón y gesto con Gemini simulado, portapapeles vacío y consulta en curso. Pruebas: 17 aprobadas y una omitida (DPAPI). La prueba con Gemini real y dentro de NVDA sigue pendiente.
 
-## Texto devuelto sin cambios — versión 0.3.2
+## Texto devuelto sin cambios — versión 0.4.0
 
 Idioma de destino significa el idioma al que quieres traducir, no el idioma del texto original. Para traducir de inglés a español, elige español en Opciones y acepta. Las preferencias anteriores se mantienen.
 
 Si Gemini devuelve exactamente el texto original, el complemento hace un solo reintento con una instrucción explícita. Si no cambia, muestra un aviso con el idioma de destino, en lugar de presentar el original como una traducción completada. Esto puede ocurrir cuando el original ya está en el idioma de destino o es un nombre propio. El reintento supone una petición adicional a Gemini y se somete a sus cuotas y costes. Las preguntas a Gemini no usan este reintento.
 
 Se verificaron el reintento y el aviso con respuestas simuladas: 19 pruebas aprobadas y una omitida (DPAPI). No se ha reproducido el caso del usuario con una clave real; la verificación de Gemini y de la interfaz dentro de NVDA sigue pendiente.
+
+## Actualizaciones e historial
+
+Buscar actualizaciones consulta `update.json` del repositorio público y ofrece descargar el instalador, verifica SHA-256 y manifiesto y lo abre con NVDA. Publicar siempre el paquete y `update.json` juntos en la raíz de main. `build.py` genera ambos. No se instala sin intervención del usuario.
+
+Historial conserva consultas correctas y traducciones con texto original, resultado, fecha, idioma y modelo. Opciones permite de 0 a 10000 entradas (100 por defecto); 0 desactiva y vacía el historial. Recuperar no envía otra petición. Se puede copiar, eliminar y vaciar. Los textos se almacenan localmente sin cifrado en `lexico-history.json`, sin claves de API.

@@ -1,6 +1,8 @@
 from pathlib import Path
 from zipfile import ZipFile, ZIP_DEFLATED
 import ast
+import hashlib
+import json
 import re
 
 root = Path(__file__).parent
@@ -16,6 +18,9 @@ with ZipFile(output, 'w', ZIP_DEFLATED) as archive:
 with ZipFile(output) as archive:
     assert archive.testzip() is None
     assert 'manifest.ini' in archive.namelist()
+metadata = dict(version=version, filename=output.name, sha256=hashlib.sha256(output.read_bytes()).hexdigest())
+(root / 'update.json').write_text(json.dumps(metadata, indent=2) + '\n', encoding='utf-8')
+(root.parent / 'update.json').write_text(json.dumps(metadata, indent=2) + '\n', encoding='utf-8')
 print(output)
 source = root.parent / 'lexico-nvda-codigo.zip'
 with ZipFile(source, 'w', ZIP_DEFLATED) as archive:

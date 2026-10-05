@@ -2,3 +2,4 @@ __pycache__/
 *.pyc
 *.nvda-addon
 lexico-settings.json
+lexico-history.json
