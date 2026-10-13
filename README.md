@@ -1,6 +1,10 @@
-# Léxico para NVDA — versión 0.5.2
+# Léxico para NVDA — versión 0.5.5
 
-[Descargar Léxico 0.5.2 para NVDA](https://github.com/kate-blip728/lexico-nvda/raw/refs/heads/main/lexico-0.5.2.nvda-addon)
+[Descargar Léxico 0.5.5 para NVDA](https://github.com/kate-blip728/lexico-nvda/raw/refs/heads/feature/traduccion-0.5.5/lexico-0.5.5.nvda-addon)
+
+Esta versión añade un selector Google Translate/Gemini en Opciones para traducir texto y portapapeles. Google Translate funciona sin clave mediante un endpoint no oficial. Gemini muestra los fragmentos conforme llegan; el usuario confirmó una mejora de rapidez percibida. «Medir tiempos de Gemini» ayuda a comparar el tiempo hasta el primer texto y la respuesta completa; la causa de la demora no se ha confirmado.
+
+NVDA+Alt+Mayús+T activa o desactiva la traducción de los anuncios de NVDA al idioma elegido. Este modo usa solo Google Translate, envía los textos anunciados a Google y empieza desactivado. Se puede reasignar en Gestos de entrada → Léxico. La traducción continua sigue pendiente de validación real en NVDA. Véase [la guía de voz](docs/VOZ_0.5.5.md).
 
 La versión 0.5.2 amplía la espera de generación de Gemini a 90 segundos y distingue errores de API, DNS, TLS y tiempo de espera. Una traducción real se completó en 44,4 segundos; la espera anterior de 30 segundos era insuficiente. Se han superado las 40 pruebas automatizadas. Véase [el diagnóstico](docs/GEMINI_DIAGNOSTICO.md).
 

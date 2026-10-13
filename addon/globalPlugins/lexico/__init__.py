@@ -9,11 +9,14 @@ import globalVars
 import gui
 import textInfos
 import ui
+import speech
+import controlTypes
 from scriptHandler import script
 from . import services, spelling, updates
 from .history import History
 from .correction import CorrectionDialog
 from .storage import Store, LANGUAGES, MODELS, RECOMMENDED_MODEL, SPELL_LANGUAGES
+from .liveSpeech import SpeechTranslator
 
 class Options(wx.Dialog):
     def __init__(self, parent, store):
@@ -21,6 +24,10 @@ class Options(wx.Dialog):
         self.store = store
         layout = wx.BoxSizer(wx.VERTICAL)
         self.controls = {}
+        layout.Add(wx.StaticText(self, label='Servicio de traducción:'), 0, wx.ALL, 8)
+        provider = wx.ComboBox(self, value=store.values['provider'], choices=['Google Translate', 'Gemini'], style=wx.CB_READONLY)
+        layout.Add(provider, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 8)
+        self.controls['provider'] = provider
         for name, label in [('language', '&Idioma de destino:'),
                              ('model', '&Modelo de Gemini:'),
                              ('spelling_language', 'Idioma del corrector de &Windows:'),
@@ -46,7 +53,9 @@ class Options(wx.Dialog):
             button.Bind(wx.EVT_BUTTON, lambda event, target=url: self.openLink(target))
             layout.Add(button, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
         layout.Add(wx.StaticText(self, label='La clave se guarda cifrada para tu usuario de Windows.\n'
-            'Al traducir o preguntar, el texto indicado se envía a Google Gemini.\n'
+            'Al traducir, el texto se envía al servicio elegido. Google Translate no necesita clave.\n'
+            'Google Translate usa un acceso no oficial que puede cambiar o bloquearse.\n'
+            'Las preguntas se envían a Gemini y requieren su clave.\n'
             'La revisión de Windows no utiliza Gemini.\n'
             'Las búsquedas del DLE se envían a rae-api.com; las del DPD a www.rae.es.'), 0, wx.ALL, 8)
         layout.Add(wx.StaticText(self, label='Número máximo de entradas del historial (0 lo desactiva):'), 0, wx.ALL, 8)
@@ -80,7 +89,7 @@ class Options(wx.Dialog):
 
 class Window(wx.Dialog):
     def __init__(self, parent, plugin, initial=''):
-        super().__init__(parent, title='Léxico 0.5.1: diccionario, escritura y traducción', size=(760, 680))
+        super().__init__(parent, title='Léxico 0.5.5: diccionario, escritura y traducción', size=(760, 680))
         self.plugin = plugin
         self.alive = True
         self.busy = False
@@ -122,7 +131,7 @@ class Window(wx.Dialog):
             self.actions.append(button)
         layout.Add(buttons, 0, wx.ALL, 4)
         buttons = wx.BoxSizer(wx.HORIZONTAL)
-        for label, action in [('Corregir con &Windows', self.correct), ('&Preguntar a Gemini', self.ask), ('&Historial', self.history), ('Buscar &actualizaciones', self.update)]:
+        for label, action in [('Corregir con &Windows', self.correct), ('&Preguntar a Gemini', self.ask), ('Medir tiempos de Gemini', self.diagnoseGemini), ('&Historial', self.history), ('Buscar &actualizaciones', self.update)]:
             button = wx.Button(self, label=label)
             button.Bind(wx.EVT_BUTTON, action)
             buttons.Add(button, 0, wx.ALL, 4)
@@ -148,20 +157,24 @@ class Window(wx.Dialog):
         self.alive = False
         self.plugin.window = None
         self.Destroy()
-    def run(self, operation, history=None):
+    def run(self, operation, history=None, stream_operation=None):
         if self.busy:
             ui.message('Hay una consulta en curso.')
             return
         self.busy = True
         self.generation += 1
         generation = self.generation
+        self.partialText = ''
         for button in self.actions:
             button.Disable()
         self.result.SetValue('Consultando…')
         ui.message('Consultando')
         def worker():
             try:
-                result = operation()
+                if stream_operation is None:
+                    result = operation()
+                else:
+                    result = stream_operation(lambda text: wx.CallAfter(self.partial, generation, text))
                 if history is not None:
                     try:
                         self.plugin.history.add(result=result, limit=self.plugin.store.values['history_limit'], **history)
@@ -173,6 +186,19 @@ class Window(wx.Dialog):
                 result = 'No se pudo completar la consulta. Inténtalo de nuevo.'
             wx.CallAfter(self.completed, generation, result)
         threading.Thread(target=worker, daemon=True).start()
+    def partial(self, generation, text):
+        if not self.alive or not self.plugin.active or generation != self.generation or not self.busy:
+            return
+        if not self.partialText:
+            self.result.SetValue(text)
+            ui.message('La traducción está llegando. Puedes leerla en Resultado.')
+        elif text.startswith(self.partialText):
+            selection = self.result.GetSelection()
+            self.result.AppendText(text[len(self.partialText):])
+            self.result.SetSelection(*selection)
+        else:
+            self.result.SetValue(text)
+        self.partialText = text
     def completed(self, generation, result):
         if not self.alive or not self.plugin.active or generation != self.generation:
             return
@@ -222,8 +248,14 @@ class Window(wx.Dialog):
             return
         self.input.SetValue(text)
         values = self.plugin.store.values.copy()
+        if values.get('provider', 'Gemini') == 'Google Translate':
+            self.run(lambda: services.google_translate(text, values['language']),
+                     dict(kind='Traducción', text=text, language=values['language'], model='Google Translate'),
+                     stream_operation=lambda progress: services.google_translate(text, values['language'], on_chunk=progress))
+            return
         self.run(lambda: services.translate(text, values['language'], values['key'], values['model']),
-                 dict(kind='Traducción', text=text, language=values['language'], model=values['model']))
+                 dict(kind='Traducción', text=text, language=values['language'], model=values['model']),
+                 stream_operation=lambda progress: services.translate(text, values['language'], values['key'], values['model'], on_chunk=progress))
     def translateClipboard(self, event=None):
         try:
             text = api.getClipData()
@@ -231,6 +263,9 @@ class Window(wx.Dialog):
             ui.message('El portapapeles no contiene texto.')
             return
         self.translateText(text)
+    def diagnoseGemini(self, event=None):
+        values = self.plugin.store.values.copy()
+        self.run(lambda: services.diagnose_gemini(values['key'], values['model']))
     def howWritten(self, event=None):
         word = self.word.GetValue().strip()
         language = self.plugin.store.values['spelling_language']
@@ -398,6 +433,7 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
         self.active = False
         self.window = None
         self.menu = None
+        self.liveSpeech = None
         if globalVars.appArgs.secure:
             return
         self.store = Store(WritePaths.configDir)
@@ -409,10 +445,36 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             self.store.warning += '\nNo se pudo aplicar el límite del historial.'
         self.store.warning += self.history.warning
         self.active = True
+        self.liveSpeech = SpeechTranslator(services.google_translate, wx.CallAfter, speech.speak, ui.message)
+        speech.filter_speechSequence.register(self.filterSpeech)
+        speech.speechCanceled.register(self.liveSpeech.cancel)
         self.menu = gui.mainFrame.sysTrayIcon.toolsMenu.Append(wx.ID_ANY, 'Léxico: diccionario y traducción…')
         gui.mainFrame.sysTrayIcon.Bind(wx.EVT_MENU, self.onMenu, self.menu)
     def onMenu(self, event):
         self.open()
+    def filterSpeech(self, speechSequence):
+        if not self.active or not self.liveSpeech:
+            return speechSequence
+        if speech.getState().speechMode != speech.SpeechMode.talk:
+            return speechSequence
+        try:
+            protected = controlTypes.State.PROTECTED in api.getFocusObject().states
+        except Exception:
+            protected = True
+        return self.liveSpeech.filter(speechSequence, protected=protected)
+    @script(description='Activa o desactiva la traducción de lo que anuncia NVDA al idioma de destino de Léxico.',
+            gesture='kb:NVDA+alt+shift+t')
+    def script_toggleSpeechTranslation(self, gesture):
+        if not self.active or not self.liveSpeech:
+            return
+        enabled = self.liveSpeech.toggle(self.store.values['language'])
+        self.liveSpeech.internal = True
+        try:
+            ui.message(('Traducción de voz activada al idioma ' + self.store.values['language'] +
+                        '. Lo que anuncie NVDA se enviará a Google Translate. Pulsa el mismo comando para desactivar.')
+                       if enabled else 'Traducción de voz desactivada.')
+        finally:
+            self.liveSpeech.internal = False
     def selection(self):
         try:
             focus = api.getFocusObject()
@@ -478,6 +540,10 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
         wx.CallAfter(self.open, word, 'lookupText')
     def terminate(self):
         self.active = False
+        if self.liveSpeech:
+            speech.filter_speechSequence.unregister(self.filterSpeech)
+            speech.speechCanceled.unregister(self.liveSpeech.cancel)
+            self.liveSpeech.close()
         if self.window:
             self.window.Close()
         if self.menu:
