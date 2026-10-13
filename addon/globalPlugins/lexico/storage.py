@@ -14,7 +14,7 @@ LANGUAGES = ['español', 'inglés', 'francés', 'alemán', 'italiano', 'portugu�
              'húngaro', 'indonesio', 'japonés', 'neerlandés', 'noruego', 'polaco', 'rumano',
              'ruso', 'sueco', 'tailandés', 'turco', 'ucraniano', 'vietnamita']
 SPELL_LANGUAGES = ['es-ES', 'es-MX', 'en-US', 'en-GB', 'fr-FR', 'de-DE', 'it-IT', 'pt-PT', 'pt-BR', 'ca-ES']
-DEFAULTS = {'language': 'inglés', 'model': RECOMMENDED_MODEL, 'key': '', 'spelling_language': 'es-ES', 'history_limit': 100}
+DEFAULTS = {'language': 'inglés', 'model': RECOMMENDED_MODEL, 'key': '', 'spelling_language': 'es-ES', 'history_limit': 100, 'provider': 'Google Translate'}
 
 class Blob(ctypes.Structure):
     _fields_ = [('size', wintypes.DWORD), ('data', ctypes.POINTER(ctypes.c_ubyte))]
@@ -54,6 +54,10 @@ class Store:
                 for name in ('language', 'model', 'spelling_language'):
                     if isinstance(raw.get(name), str):
                         self.values[name] = raw[name]
+                if raw.get('provider') in ('Google Translate', 'Gemini'):
+                    self.values['provider'] = raw['provider']
+                else:
+                    self.values['provider'] = 'Gemini'
                 limit = raw.get('history_limit', 100)
                 if type(limit) is int and 0 <= limit <= 10000:
                     self.values['history_limit'] = limit
@@ -61,14 +65,16 @@ class Store:
                     self.values['key'] = crypt(base64.b64decode(raw['protectedKey']), True).decode('utf-8')
             except (OSError, ValueError, TypeError, UnicodeError):
                 self.warning = 'No se pudo leer la configuración o descifrar la clave. Revisa las opciones de Léxico.'
-    def save(self, language, model, key, spelling_language='es-ES', history_limit=100):
+    def save(self, language, model, key, spelling_language='es-ES', history_limit=100, provider='Gemini'):
+        if provider not in ('Google Translate', 'Gemini'):
+            raise ValueError('Invalid translation provider')
         if type(history_limit) is not int or not 0 <= history_limit <= 10000:
             raise ValueError('Invalid history limit')
-        raw = {'history_limit': history_limit, 'language': language, 'model': model, 'spelling_language': spelling_language,
+        raw = {'provider': provider, 'history_limit': history_limit, 'language': language, 'model': model, 'spelling_language': spelling_language,
                'protectedKey': base64.b64encode(crypt(key.encode('utf-8'))).decode('ascii') if key else ''}
         self.path.parent.mkdir(parents=True, exist_ok=True)
         temporary = self.path.with_suffix('.tmp')
         temporary.write_text(json.dumps(raw, ensure_ascii=False, indent=2), encoding='utf-8')
         os.replace(temporary, self.path)
-        self.values = {'history_limit': history_limit, 'language': language, 'model': model, 'key': key, 'spelling_language': spelling_language}
+        self.values = {'provider': provider, 'history_limit': history_limit, 'language': language, 'model': model, 'key': key, 'spelling_language': spelling_language}
         self.warning = ''

@@ -1,6 +1,10 @@
 <!doctype html>
 <html lang="es"><meta charset="utf-8"><title>Léxico para NVDA</title>
-<body><h1>Léxico para NVDA 0.5.1</h1>
+<body><h1>Léxico para NVDA 0.5.5</h1>
+<h2>Traducción en esta versión</h2>
+<p>En Opciones, elige Google Translate o Gemini para traducir el texto escrito o el portapapeles. Google Translate no requiere clave y utiliza un acceso no oficial que puede cambiar o bloquearse. Gemini requiere la clave y muestra la traducción conforme llegan los fragmentos.</p>
+<p>NVDA+Alt+Mayús+T activa o desactiva la traducción de los anuncios de NVDA al idioma de destino de Opciones. Este modo usa Google Translate, aunque hayas elegido Gemini para el cuadro de texto. Mientras está activo, los textos anunciados se envían a Google. Empieza desactivado y se puede reasignar en Gestos de entrada, categoría Léxico. La traducción continua sigue pendiente de validación real en NVDA.</p>
+<p>El botón Medir tiempos de Gemini compara modelos con el texto fijo Hola y muestra el tiempo hasta el primer texto y hasta terminar; puede tardar varios minutos si hay tiempos de espera. No muestra la clave ni cambia el modelo guardado.</p>
 <p>Versión inicial para NVDA 2026.2. No se ha verificado todavía la interfaz dentro de NVDA ni una traducción real con Gemini. El cifrado nativo de la clave queda pendiente de verificar dentro de NVDA: el entorno aislado de desarrollo no accede al perfil de Windows necesario. Si no puede cifrar, el complemento avisa y no guarda la clave en texto plano.</p>
 <h2>Uso</h2><p>Abre NVDA → Herramientas → Léxico: diccionario y traducción. Escribe una palabra y pulsa Buscar en el DLE, o pulsa Palabra del día. Los resultados aparecen en un campo de texto de solo lectura: usa las flechas para leerlos y Copiar resultado para copiarlos.</p>
 <p>Para traducir, abre Opciones, introduce tu clave de API de Gemini, el idioma de destino y un modelo disponible en tu cuenta. El modelo inicial es gemini-3.5-flash-lite. Escribe o pega el texto y pulsa Traducir. La aplicación Gemini no sustituye una clave de API. Puedes obtenerla en <a href="https://aistudio.google.com/apikey">Google AI Studio</a>.</p>
