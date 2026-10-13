@@ -85,6 +85,7 @@ class Checks(unittest.TestCase):
         self.assertNotIn('test-key', req.full_url)
         self.assertEqual(req.get_header('X-goog-api-key'), 'test-key')
         self.assertEqual(json.loads(req.data)['contents'][0]['parts'][0]['text'], 'Hola')
+        self.assertNotIn('generationConfig', json.loads(req.data))
     def test_translation_not_complete(self):
         response = {'candidates': [{'finishReason': 'MAX_TOKENS', 'content': {'parts': [{'text': 'partial'}]}}]}
         with patch.object(services, 'request', return_value=json.dumps(response)):

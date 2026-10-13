@@ -1,6 +1,8 @@
-# Léxico para NVDA — versión 0.5.1
+# Léxico para NVDA — versión 0.5.2
 
-[Descargar Léxico 0.5.1 para NVDA](https://github.com/kate-blip728/lexico-nvda/raw/refs/heads/main/lexico-0.5.1.nvda-addon)
+[Descargar Léxico 0.5.2 para NVDA](https://github.com/kate-blip728/lexico-nvda/raw/refs/heads/main/lexico-0.5.2.nvda-addon)
+
+La versión 0.5.2 amplía la espera de generación de Gemini a 90 segundos y distingue errores de API, DNS, TLS y tiempo de espera. Una traducción real se completó en 44,4 segundos; la espera anterior de 30 segundos era insuficiente. Se han superado las 40 pruebas automatizadas. Véase [el diagnóstico](docs/GEMINI_DIAGNOSTICO.md).
 
 Repositorio público con el código fuente, las pruebas y el generador del paquete. Versión inicial: consulta las limitaciones de validación antes de instalar.
 
