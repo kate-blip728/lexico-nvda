@@ -25,6 +25,6 @@ print(output)
 source = root.parent / 'lexico-nvda-codigo.zip'
 with ZipFile(source, 'w', ZIP_DEFLATED) as archive:
     for file in sorted(root.rglob('*')):
-        if file.is_file() and '__pycache__' not in file.parts and '.git' not in file.parts and file.suffix != '.pyc':
+        if file.is_file() and '__pycache__' not in file.parts and '.git' not in file.parts and file.suffix not in ('.pyc', '.nvda-addon', '.zip'):
             archive.write(file, 'lexico-nvda/' + file.relative_to(root).as_posix())
 print(source)
