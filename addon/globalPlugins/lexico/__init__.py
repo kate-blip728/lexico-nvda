@@ -89,11 +89,14 @@ class Options(wx.Dialog):
 
 class Window(wx.Dialog):
     def __init__(self, parent, plugin, initial=''):
-        super().__init__(parent, title='Léxico 0.5.5: diccionario, escritura y traducción', size=(760, 680))
+        super().__init__(parent, title='Léxico 0.6.0: diccionario, información y traducción', size=(760, 680))
         self.plugin = plugin
         self.alive = True
         self.busy = False
         self.generation = 0
+        self.informationWindow = None
+        from .information_jobs import RequestSlot
+        self.informationJobs = RequestSlot(wx.CallAfter)
         layout = wx.BoxSizer(wx.VERTICAL)
         layout.Add(wx.StaticText(self, label='&Palabra o expresión:'), 0, wx.ALL, 8)
         self.word = wx.TextCtrl(self)
@@ -107,7 +110,7 @@ class Window(wx.Dialog):
             self.actions.append(button)
         layout.Add(buttons, 0, wx.ALL, 4)
         dictionary = wx.BoxSizer(wx.HORIZONTAL)
-        for label, action in [('Definición del porta&papeles', self.lookupClipboard), ('Consultar &DPD', self.dpd)]:
+        for label, action in [('Definición del porta&papeles', self.lookupClipboard), ('Consultar &DPD', self.dpd), ('Buscar información…', self.information)]:
             button = wx.Button(self, label=label)
             button.Bind(wx.EVT_BUTTON, action)
             dictionary.Add(button, 0, wx.ALL, 4)
@@ -155,8 +158,17 @@ class Window(wx.Dialog):
             self.result.SetValue(plugin.store.warning)
     def closed(self, event):
         self.alive = False
+        self.informationJobs.cancel()
+        if self.informationWindow is not None: self.informationWindow.Close()
         self.plugin.window = None
         self.Destroy()
+    def information(self, event=None):
+        if not self.alive or not self.plugin.active: return
+        if self.informationWindow is None:
+            from .information_ui import InformationWindow
+            self.informationWindow = InformationWindow(self, self.informationJobs)
+            self.informationWindow.Show()
+        else: self.informationWindow.Raise()
     def run(self, operation, history=None, stream_operation=None):
         if self.busy:
             ui.message('Hay una consulta en curso.')
@@ -538,6 +550,9 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             ui.message('El portapapeles no contiene una palabra o expresión.')
             return
         wx.CallAfter(self.open, word, 'lookupText')
+    @script(description='Abre la búsqueda de información en Wikipedia y otras fuentes dentro de Léxico.')
+    def script_information(self, gesture):
+        wx.CallAfter(self.open, '', 'information')
     def terminate(self):
         self.active = False
         if self.liveSpeech:
