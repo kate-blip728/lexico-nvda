@@ -1,6 +1,10 @@
-# Léxico para NVDA — versión 0.5.5
+# Léxico para NVDA — versión 0.6.0
 
-[Descargar Léxico 0.5.5 para NVDA](https://github.com/kate-blip728/lexico-nvda/raw/refs/heads/feature/traduccion-0.5.5/lexico-0.5.5.nvda-addon)
+[Descargar Léxico 0.6.0 para NVDA](lexico-0.6.0.nvda-addon)
+
+**Nuevo: Buscar información…** consulta Wikipedia, Wikcionario, Wikisource, Wikilibros y Wikiviajes. Abre los artículos en texto seleccionable o HTML estructurado, copia fragmentos o todo el artículo, edita una copia y traduce mediante tus opciones habituales. El original permanece disponible. [Guía de información](docs/INFORMACION-0.6.0.md).
+
+Validación 0.6.0: 84 pruebas correctas; pendiente uso real de la búsqueda y vistas con NVDA. La versión se propone para revisión antes de publicarla como actualización en main.
 
 Esta versión añade un selector Google Translate/Gemini en Opciones para traducir texto y portapapeles. Google Translate funciona sin clave mediante un endpoint no oficial. Gemini muestra los fragmentos conforme llegan; el usuario confirmó una mejora de rapidez percibida. «Medir tiempos de Gemini» ayuda a comparar el tiempo hasta el primer texto y la respuesta completa; la causa de la demora no se ha confirmado.
 
